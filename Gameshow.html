@@ -3,839 +3,635 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wheel of Fortune Game Show</title>
+    <title>Wheel of Knowledge - AutoSave</title>
+    <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Tone.js is kept to ensure reliable AudioContext initialization on user interaction for TTS -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <!-- Load Tone.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #0d1117; /* Dark background */
+        body { font-family: 'Inter', sans-serif; background-color: #0b1a37; color: #e5e7eb; }
+        .letter-box {
+            display: inline-flex; justify-content: center; align-items: center;
+            width: 40px; height: 50px; margin: 2px;
+            background-color: #3b82f6; color: #fcd34d;
+            font-size: 24px; font-weight: 900; border-radius: 6px;
+            box-shadow: 0 3px 5px rgba(0,0,0,0.3); transition: all 0.2s;
         }
-        .puzzle-letter {
-            width: 3rem;
-            height: 4rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 2rem;
-            font-weight: 900;
-            color: #1e3a8a; /* Dark blue for letters */
-            background-color: #fef3c7; /* Light yellow/cream tile */
-            border: 3px solid #f59e0b; /* Orange border */
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
-            border-radius: 0.5rem;
-            transition: all 0.2s ease-in-out;
-            user-select: none;
+        .letter-box.revealed { background-color: #fcd34d; color: #1f2937; transform: scale(1.05); }
+        .letter-box.space { background-color: transparent; box-shadow: none; width: 15px; }
+        .letter-box.newline { display: block; height: 0; width: 100%; margin: 0; }
+        
+        /* Button Styles */
+        .btn-action {
+            @apply p-3 px-6 rounded-lg font-bold transition-transform duration-150 shadow-lg border-b-4 border-opacity-50;
         }
-        .puzzle-space {
-            width: 3rem;
-            height: 4rem;
-            background-color: transparent;
-        }
-        .revealed {
-            background-color: #3b82f6; /* Blue for revealed tiles */
-            color: #fef3c7;
-            border-color: #1d4ed8;
-            animation: flip 0.5s ease-out;
-        }
-        @keyframes flip {
-            0% { transform: perspective(600px) rotateY(90deg); }
-            100% { transform: perspective(600px) rotateY(0deg); }
-        }
-        .letter-group {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-            justify-content: center;
-            margin-bottom: 1rem;
-        }
-        .btn-primary {
-            @apply bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition duration-200;
-        }
-        .btn-secondary {
-            @apply bg-yellow-600 hover:bg-yellow-700 text-gray-900 font-bold py-3 px-6 rounded-xl shadow-lg transition duration-200;
-        }
-        .btn-disabled {
-            @apply bg-gray-500 cursor-not-allowed opacity-50;
-        }
-        .vowel-button {
-            @apply bg-indigo-600 hover:bg-indigo-700 text-white text-xl font-bold rounded-lg w-12 h-12 flex items-center justify-center transition duration-150 shadow-md;
-        }
-        .vowel-button:disabled {
-            @apply bg-gray-500 hover:bg-gray-500 cursor-not-allowed opacity-70;
-        }
-        .team-card {
-            @apply p-4 rounded-xl shadow-lg border-2 border-gray-700 transition duration-300 transform;
-        }
-        .active-team {
-            /* Highlighted styles */
-            @apply bg-yellow-900 border-yellow-400 scale-105;
-            box-shadow: 0 0 20px 5px rgba(252, 211, 77, 0.8); /* Static yellow shadow */
-            animation: pulse-glow 1.5s infinite alternate;
-        }
-        /* New Keyframes for the Pulsing Glow */
-        @keyframes pulse-glow {
-            from {
-                box-shadow: 0 0 10px 3px rgba(252, 211, 77, 0.5), 0 0 0 0 rgba(252, 211, 77, 0.1);
-            }
-            to {
-                box-shadow: 0 0 25px 8px rgba(252, 211, 77, 1), 0 0 0 5px rgba(252, 211, 77, 0);
-            }
+        .btn-action:active:not(:disabled) { transform: translateY(2px); border-bottom-width: 0; margin-top: 2px; }
+        .btn-action:disabled { @apply opacity-50 cursor-not-allowed transform-none border-b-4; }
+
+        @media (min-width: 768px) {
+            .letter-box { width: 50px; height: 60px; margin: 3px; font-size: 28px; }
         }
     </style>
 </head>
 <body class="min-h-screen p-4 flex flex-col items-center">
 
-    <div class="max-w-5xl w-full bg-gray-800 p-8 rounded-3xl shadow-2xl mt-4">
-        <h1 class="text-4xl font-black text-center text-yellow-400 mb-6">Wheel of Knowledge Game Show</h1>
-
-        <!-- Team Management -->
-        <div class="flex justify-center space-x-4 mb-6">
-            <button id="addTeamButton" class="btn-primary" onclick="addTeam()">Add Team</button>
-            <button id="removeTeamButton" class="btn-primary bg-red-600 hover:bg-red-700" onclick="removeLastTeam()">Remove Last Team</button>
-        </div>
+    <div class="max-w-5xl w-full">
+        <!-- Header -->
+        <header class="text-center mb-4">
+            <h1 class="text-3xl md:text-5xl font-black text-white mb-1 tracking-tight">WHEEL OF KNOWLEDGE</h1>
+            <p id="category-display" class="text-lg font-semibold text-indigo-300 bg-indigo-900/50 inline-block px-4 py-1 rounded-full">Category: Loading...</p>
+        </header>
 
         <!-- Scoreboard -->
-        <div id="teamsContainer" class="flex flex-wrap justify-center gap-4 mb-8">
-            <!-- Team cards go here -->
+        <div id="scoreboard-container" class="flex flex-wrap justify-center gap-2 mb-6">
+            <!-- Scores injected here -->
         </div>
 
-        <!-- Puzzle Category -->
-        <div id="categoryContainer" class="text-center mb-4 p-2 bg-gray-900 rounded-lg">
-            <p class="text-xl font-semibold text-gray-400">CATEGORY:</p>
-            <p id="puzzleCategory" class="text-3xl font-black text-white italic">Loading...</p>
+        <!-- Team Controls -->
+        <div class="flex justify-center gap-3 mb-6">
+            <button id="add-team-btn" class="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm font-bold">+ Team</button>
+            <button id="remove-team-btn" class="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm font-bold">- Team</button>
         </div>
 
-        <!-- Puzzle Display -->
-        <div id="puzzleContainer" class="flex flex-wrap justify-center items-center gap-2 mb-8 p-4 bg-gray-700 rounded-xl min-h-[150px] border-4 border-yellow-500">
-            <!-- Puzzle tiles will be rendered here by JavaScript -->
+        <!-- Board -->
+        <div id="puzzle-board" class="p-4 md:p-8 bg-gray-800/80 backdrop-blur-sm border border-gray-700 rounded-2xl shadow-2xl mb-6 flex flex-wrap justify-center min-h-[120px]"></div>
+
+        <!-- Status/Wheel Output -->
+        <div class="text-center mb-6 h-20">
+            <p id="wheel-result" class="text-3xl font-black text-yellow-400 mb-1 drop-shadow-md"></p>
+            <p id="game-message" class="text-lg text-white font-medium"></p>
         </div>
 
-        <!-- Guessed Letters -->
-        <div class="mb-6 p-4 bg-gray-900 rounded-xl">
-            <h2 class="text-lg font-semibold text-gray-300 mb-2">Guessed Letters:</h2>
-            <p id="guessedLettersDisplay" class="text-2xl font-mono text-cyan-400 break-words"></p>
+        <!-- Game Controls -->
+        <div class="flex flex-col md:flex-row justify-center items-center gap-3 mb-6">
+            <button id="spin-btn" class="btn-action bg-red-600 border-red-800 text-white hover:bg-red-500 w-full md:w-auto min-w-[140px]">SPIN</button>
+            <button id="vowel-btn" class="btn-action bg-green-600 border-green-800 text-white hover:bg-green-500 w-full md:w-auto min-w-[140px]">BUY VOWEL ($250)</button>
+            <button id="solve-btn" class="btn-action bg-yellow-500 border-yellow-700 text-gray-900 hover:bg-yellow-400 w-full md:w-auto min-w-[140px]">SOLVE</button>
         </div>
 
-        <!-- Control Buttons -->
-        <div id="controlButtons" class="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-4">
-            <button id="spinButton" class="btn-primary" onclick="spinWheel()">Spin Wheel</button>
-            <button id="buyVowelButton" class="btn-secondary" onclick="openVowelModal()">Buy Vowel (-$250)</button>
-            <button id="solveButton" class="btn-primary" onclick="solvePuzzle()">Solve Puzzle</button>
-            <button id="newGameButton" class="btn-primary" onclick="newGame()">New Puzzle</button>
-        </div>
-        
-        <!-- Guess Input (Visible only after spin) -->
-        <div id="guessInputContainer" class="mt-6 p-4 bg-yellow-800 rounded-xl hidden">
-            <h2 id="guessPrompt" class="text-xl font-bold text-white mb-3 text-center"></h2>
-            <div class="flex space-x-2">
-                <input id="letterInput" type="text" maxlength="1" 
-                       class="flex-grow p-3 rounded-lg text-gray-900 text-2xl font-bold uppercase text-center focus:ring-4 focus:ring-yellow-300"
-                       placeholder="Enter consonant">
-                <button id="guessLetterButton" class="bg-yellow-500 hover:bg-yellow-600 text-gray-900 font-bold py-3 px-6 rounded-xl transition duration-200" onclick="handleManualGuess()">Guess Letter</button>
+        <!-- Input Section -->
+        <div id="input-area" class="bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-700">
+            <label for="guess-input" id="input-label" class="block text-lg font-medium mb-2 text-gray-300">Wait for your turn...</label>
+            <div class="flex gap-2">
+                <input type="text" id="guess-input" maxlength="1" 
+                       class="flex-grow p-3 bg-gray-900 border border-gray-600 rounded-lg text-white text-2xl uppercase font-bold tracking-wider focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                       placeholder="..." disabled autocomplete="off">
+                <button id="submit-guess" class="btn-action bg-blue-600 border-blue-800 text-white hover:bg-blue-500 min-w-[100px]" disabled>OK</button>
+            </div>
+            <div class="mt-3 text-sm text-gray-400 flex justify-between px-1">
+                <span id="cons-display">Consonants: -</span>
+                <span id="vow-display">Vowels: -</span>
             </div>
         </div>
 
-        <div id="messageBox" class="mt-4 text-center text-xl font-bold text-red-400 h-8"></div>
-    </div>
-
-    <!-- Vowel Purchase Modal (Hidden by default) -->
-    <div id="vowelModal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center z-50">
-        <div class="bg-gray-800 p-8 rounded-xl shadow-2xl max-w-sm w-full border-4 border-indigo-500">
-            <h2 class="text-2xl font-bold text-white mb-4 text-center">Select a Vowel ($250)</h2>
-            <p id="vowelError" class="text-red-400 text-center mb-4 hidden">Not enough money! Need $250.</p>
-            <p class="text-gray-300 text-center mb-6">Choose one of the available vowels:</p>
-
-            <div id="vowelButtons" class="flex justify-center space-x-3 mb-6">
-                <!-- Vowel buttons will be rendered here -->
-            </div>
-
-            <button class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg w-full" onclick="closeVowelModal()">Cancel</button>
+        <!-- Generator & Reset -->
+        <div class="mt-8 pt-4 border-t border-gray-700 flex justify-center gap-6">
+            <button id="generate-puzzle-btn" class="text-sm text-purple-400 hover:text-purple-300 underline">✨ Generate New Puzzles (AI)</button>
+            <button id="reset-game-btn" class="text-sm text-red-400 hover:text-red-300 underline">🗑️ Reset Game & Scores</button>
         </div>
     </div>
 
     <script>
-        // --- API & Audio Utilities ---
-        const TTS_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=";
-        const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=";
-        const apiKey = ""; // Canvas environment handles the API key
+        // --- 1. ROBUST AUDIO CONTROLLER ---
+        const Audio = {
+            ctx: null,
+            synths: {},
+            initialized: false,
 
-        // Audio Queue Management
-        let ttsQueue = [];
-        let isTtsSpeaking = false;
-        
-        // Audio Context and Music Status
-        let isAudioContextInitialized = false;
-
-        /** Converts a base64 string to an ArrayBuffer. */
-        function base64ToArrayBuffer(base64) {
-            const binaryString = atob(base64);
-            const len = binaryString.length;
-            const bytes = new Uint8Array(len);
-            for (let i = 0; i < len; i++) {
-                bytes[i] = binaryString.charCodeAt(i);
-            }
-            return bytes.buffer;
-        }
-
-        /** Converts PCM audio data to a WAV Blob. Assumes 16-bit signed PCM. */
-        function pcmToWav(pcmData, sampleRate) {
-            const buffer = new ArrayBuffer(44 + pcmData.byteLength);
-            const view = new DataView(buffer);
-            let offset = 0;
-
-            function writeString(str) {
-                for (let i = 0; i < str.length; i++) {
-                    view.setUint8(offset++, str.charCodeAt(i));
-                }
-            }
-
-            // RIFF chunk descriptor
-            writeString('RIFF');
-            view.setUint32(offset, 36 + pcmData.byteLength, true); offset += 4;
-            writeString('WAVE');
-
-            // fmt chunk
-            writeString('fmt ');
-            view.setUint32(offset, 16, true); offset += 4;      // Chunk size (16 for PCM)
-            view.setUint16(offset, 1, true); offset += 2;      // Audio format (1 for PCM)
-            view.setUint16(offset, 1, true); offset += 2;      // Num channels (Mono)
-            view.setUint32(offset, sampleRate, true); offset += 4; // Sample rate
-            view.setUint32(offset, sampleRate * 2, true); offset += 4; // Byte rate (SampleRate * NumChannels * BitsPerSample/8)
-            view.setUint16(offset, 2, true); offset += 2;      // Block align (NumChannels * BitsPerSample/8)
-            view.setUint16(offset, 16, true); offset += 2;     // Bits per sample
-
-            // data chunk
-            writeString('data');
-            view.setUint32(offset, pcmData.byteLength, true); offset += 4;
-            
-            // Write PCM data
-            const pcm8 = new Uint8Array(pcmData);
-            for (let i = 0; i < pcm8.length; i++) {
-                view.setUint8(offset++, pcm8[i]);
-            }
-
-            return new Blob([view], { type: 'audio/wav' });
-        }
-
-        /** Plays the generated audio blob and signals when complete. */
-        function playWav(wavBlob) {
-            const audioUrl = URL.createObjectURL(wavBlob);
-            const audio = new Audio(audioUrl);
-            
-            audio.onended = () => {
-                isTtsSpeaking = false;
-                processTtsQueue(); // Start next item in queue
-            };
-            
-            audio.play().catch(e => {
-                console.error("Audio playback error:", e);
-                // If playback fails, treat as finished to unblock the queue
-                isTtsSpeaking = false;
-                processTtsQueue();
-            });
-        }
-
-        /** Processes the next item in the TTS queue. */
-        async function processTtsQueue() {
-            if (isTtsSpeaking || ttsQueue.length === 0) {
-                return;
-            }
-
-            isTtsSpeaking = true;
-            const textToSpeak = ttsQueue.shift();
-
-            const payload = {
-                contents: [{ parts: [{ text: textToSpeak }] }],
-                generationConfig: {
-                    responseModalities: ["AUDIO"],
-                    speechConfig: {
-                        voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } }
-                    }
-                },
-                model: "gemini-2.5-flash-preview-tts"
-            };
-
-            const maxRetries = 5;
-            for (let i = 0; i < maxRetries; i++) {
+            async init() {
+                if (this.initialized) return;
                 try {
-                    const response = await fetch(TTS_API_URL + apiKey, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
+                    await Tone.start();
+                    console.log("Audio Context Started");
+                    
+                    // Create synths only after start to ensure context connectivity
+                    this.synths.chime = new Tone.PolySynth(Tone.Synth, {
+                        oscillator: { type: "triangle" },
+                        envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 1 }
+                    }).toDestination();
+                    this.synths.chime.volume.value = -5;
 
-                    const result = await response.json();
-                    const part = result?.candidates?.[0]?.content?.parts?.[0];
-                    const mimeType = part?.inlineData?.mimeType;
-                    const audioData = part?.inlineData?.data;
+                    this.synths.buzz = new Tone.MembraneSynth().toDestination();
+                    this.synths.buzz.volume.value = -2;
 
-                    if (audioData && mimeType && mimeType.startsWith("audio/L16")) {
-                        const rateMatch = mimeType.match(/rate=(\d+)/);
-                        const sampleRate = rateMatch ? parseInt(rateMatch[1], 10) : 16000;
-                        
-                        const pcmData = base64ToArrayBuffer(audioData);
-                        const wavBlob = pcmToWav(pcmData, sampleRate);
-                        // playWav handles setting isTtsSpeaking=false onended
-                        playWav(wavBlob);
-                        return;
-                    } else if (result.error) {
-                         console.error("TTS API Error:", result.error.message);
-                         break; // Exit loop on API error
-                    }
+                    this.synths.click = new Tone.MembraneSynth({
+                        pitchDecay: 0.008, octaves: 2, envelope: { attack: 0.001, decay: 0.2, sustain: 0 }
+                    }).toDestination();
 
+                    this.synths.win = new Tone.PolySynth(Tone.Synth).toDestination();
+
+                    this.initialized = true;
                 } catch (e) {
-                    if (i < maxRetries - 1) {
-                        const delay = Math.pow(2, i) * 1000;
-                        await new Promise(resolve => setTimeout(resolve, delay));
-                    } else {
-                        console.error("TTS API call failed after multiple retries:", e);
-                        break; // Exit loop after max retries
-                    }
+                    console.warn("Audio init failed", e);
                 }
+            },
+
+            play(type) {
+                if (!this.initialized) this.init(); // Try init on fly if missed
+                if (Tone.context.state !== 'running') Tone.context.resume();
+
+                const now = Tone.now();
+                try {
+                    switch (type) {
+                        case 'correct':
+                            this.synths.chime.triggerAttackRelease(["E5", "G5", "C6"], "8n", now);
+                            break;
+                        case 'wrong':
+                            this.synths.buzz.triggerAttackRelease("C2", "8n", now);
+                            break;
+                        case 'turn':
+                            this.synths.click.triggerAttackRelease("C4", "32n", now);
+                            break;
+                        case 'win':
+                            this.synths.win.triggerAttackRelease(["C4", "E4", "G4", "C5"], "4n", now);
+                            this.synths.win.triggerAttackRelease(["E4", "G4", "C5", "E5"], "4n", now + 0.2);
+                            this.synths.win.triggerAttackRelease(["G4", "C5", "E5", "G5"], "2n", now + 0.4);
+                            break;
+                    }
+                } catch (e) { /* Ignore audio errors to keep game running */ }
             }
-            // Fallback: If API call fails or results in no audio, unblock the queue
-            isTtsSpeaking = false;
-            processTtsQueue();
-        }
+        };
 
-        /** Main TTS function: adds text to the queue. */
-        function say(text) {
-            ttsQueue.push(text);
-            processTtsQueue();
-        }
-        
-        /** Ensures the AudioContext is initialized and resumes playback on user interaction. */
-        function ensureAudioContext() {
-            if (isAudioContextInitialized) return;
-            
-            // Initialize AudioContext on first user interaction using Tone.js for reliable context resume.
-            try {
-                Tone.start(); 
-                isAudioContextInitialized = true;
-                console.log("Audio Context initialized.");
-            } catch (e) {
-                console.warn("Could not start AudioContext:", e);
-            }
-        }
+        // --- 2. GAME CONSTANTS & CONFIG ---
+        const PHASES = {
+            SETUP: 'SETUP',           // Initial state
+            SPIN_OR_ACTION: 'ACTION', // Choose: Spin, Buy Vowel, Solve
+            GUESS_CONSONANT: 'CONS',  // Input: Consonant
+            GUESS_VOWEL: 'VOWEL',     // Input: Vowel
+            GUESS_FREE: 'FREE',       // Input: Any letter (Free Play)
+            SOLVE: 'SOLVE'            // Input: Full phrase
+        };
 
-
-        // --- Global Game State & Elements ---
-        let puzzle = "";
-        let guessedLetters = new Set();
-        let teams = [];
-        let currentPlayerIndex = 0;
-        let currentSpinValue = 0; // The amount earned per letter hit after a spin
-        let gameState = 'IDLE'; // IDLE, AWAITING_CONSONANT_GUESS, GAME_OVER
+        const WHEEL_VALUES = [
+            500, 600, 300, 700, 400, 900, 
+            500, 600, 300, 800, 550, 
+            'BANKRUPT', 'LOSE_TURN', 'FREE_PLAY', 'BANKRUPT'
+        ];
 
         const VOWEL_COST = 250;
-        const VOWELS = ['A', 'E', 'I', 'O', 'U'];
-        const puzzles = [
-            "JAVASCRIPT IS FUN",
-            "WHEEL OF FORTUNE",
-            "THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG",
-            "CODE GENERATION WITH GEMINI",
-            "FULL STACK DEVELOPER",
-            "WEB APPLICATION DEVELOPMENT",
-            "REACT IS A JAVASCRIPT LIBRARY",
-            "SOFTWARE ARCHITECTURE DESIGN"
+        let PUZZLES = [
+            { category: "Geography", puzzle: "THE GRAND CANYON" },
+            { category: "Science", puzzle: "PHOTOSYNTHESIS" },
+            { category: "History", puzzle: "THE INDUSTRIAL REVOLUTION" },
+            { category: "Literature", puzzle: "ROMEO AND JULIET" }
         ];
-        
-        const elements = {
-            puzzleCategory: document.getElementById('puzzleCategory'),
-            puzzleContainer: document.getElementById('puzzleContainer'),
-            guessedLettersDisplay: document.getElementById('guessedLettersDisplay'),
-            spinButton: document.getElementById('spinButton'),
-            buyVowelButton: document.getElementById('buyVowelButton'),
-            solveButton: document.getElementById('solveButton'),
-            newGameButton: document.getElementById('newGameButton'),
-            messageBox: document.getElementById('messageBox'),
-            vowelModal: document.getElementById('vowelModal'),
-            vowelButtons: document.getElementById('vowelButtons'),
-            vowelError: document.getElementById('vowelError'),
-            teamsContainer: document.getElementById('teamsContainer'),
-            guessInputContainer: document.getElementById('guessInputContainer'),
-            letterInput: document.getElementById('letterInput'),
-            guessPrompt: document.getElementById('guessPrompt'),
-            guessLetterButton: document.getElementById('guessLetterButton'),
+
+        // --- 3. GAME STATE & PERSISTENCE ---
+        const STORAGE_KEY = 'wheel_of_knowledge_v2';
+
+        let state = {
+            phase: PHASES.SETUP,
+            teams: [ {id:1, score:0, round:0}, {id:2, score:0, round:0}, {id:3, score:0, round:0} ],
+            turnIndex: 0,
+            puzzleIndex: 0,
+            puzzle: "",
+            category: "",
+            revealed: [], // Changed to array for JSON serialization
+            guessedConsonants: [], // Changed to array for JSON serialization
+            guessedVowels: [], // Changed to array for JSON serialization
+            wheelValue: 0
         };
 
-        // --- State Management ---
-
-        function setGameState(newState) {
-            gameState = newState;
-            renderControls();
+        function saveState() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
         }
 
-        // --- Team Management Functions ---
+        function loadState() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    state = parsed;
+                    // Ensure these are rendered correctly
+                    updateUI();
+                    renderBoard();
+                    renderTeams();
+                    el.msg.textContent = `Game Restored! Team ${state.teams[state.turnIndex].id}'s turn.`;
+                    return true;
+                } catch (e) {
+                    console.error("Failed to load save", e);
+                    return false;
+                }
+            }
+            return false;
+        }
+
+        function resetGame() {
+            if(!confirm("Are you sure you want to reset scores and teams?")) return;
+            localStorage.removeItem(STORAGE_KEY);
+            location.reload();
+        }
+
+        // --- 4. DOM ELEMENTS ---
+        const el = {
+            board: document.getElementById('puzzle-board'),
+            cat: document.getElementById('category-display'),
+            msg: document.getElementById('game-message'),
+            res: document.getElementById('wheel-result'),
+            input: document.getElementById('guess-input'),
+            label: document.getElementById('input-label'),
+            scoreContainer: document.getElementById('scoreboard-container'),
+            consDisplay: document.getElementById('cons-display'),
+            vowDisplay: document.getElementById('vow-display'),
+            btns: {
+                spin: document.getElementById('spin-btn'),
+                vowel: document.getElementById('vowel-btn'),
+                solve: document.getElementById('solve-btn'),
+                submit: document.getElementById('submit-guess'),
+                add: document.getElementById('add-team-btn'),
+                rem: document.getElementById('remove-team-btn'),
+                gen: document.getElementById('generate-puzzle-btn'),
+                reset: document.getElementById('reset-game-btn')
+            }
+        };
+
+        // --- 5. CORE LOGIC ---
+
+        function initGame() {
+            // Try to load saved game first
+            if (loadState()) {
+                // If restored, just attach audio listener and return
+                return;
+            }
+            // Otherwise start fresh
+            loadPuzzle(0);
+            renderTeams();
+            Audio.play('turn'); // Pre-load audio buffer
+        }
+
+        function loadPuzzle(idx) {
+            if (idx >= PUZZLES.length) {
+                el.board.innerHTML = "<h2 class='text-white text-2xl'>Game Over!</h2>";
+                state.phase = PHASES.SETUP;
+                updateUI();
+                return;
+            }
+            state.puzzleIndex = idx;
+            const p = PUZZLES[idx];
+            state.puzzle = p.puzzle.toUpperCase();
+            state.category = p.category;
+            
+            // Reset arrays for new puzzle
+            state.revealed = [];
+            state.guessedConsonants = [];
+            state.guessedVowels = [];
+            
+            // Add spaces and punctuation to revealed automatically
+            for(let char of state.puzzle) {
+                if(!/[A-Z]/.test(char)) {
+                    if(!state.revealed.includes(char)) state.revealed.push(char);
+                }
+            }
+            
+            state.teams.forEach(t => t.round = 0);
+            state.phase = PHASES.SPIN_OR_ACTION;
+            
+            el.cat.textContent = `Category: ${state.category}`;
+            el.res.textContent = "";
+            el.msg.textContent = `Team ${state.teams[state.turnIndex].id} start!`;
+            
+            renderBoard();
+            renderTeams();
+            updateUI();
+            saveState();
+        }
+
+        // --- INPUT HANDLERS ---
+
+        function onSpin() {
+            Audio.play('click');
+            const slice = WHEEL_VALUES[Math.floor(Math.random() * WHEEL_VALUES.length)];
+            
+            if (typeof slice === 'number') {
+                state.wheelValue = slice;
+                state.phase = PHASES.GUESS_CONSONANT;
+                el.res.textContent = `$${slice}`;
+                el.res.className = "text-3xl font-black text-green-400 mb-1";
+                el.msg.textContent = "Enter a consonant.";
+            } else {
+                handleSpecialSlice(slice);
+            }
+            updateUI();
+            saveState();
+        }
+
+        function handleSpecialSlice(slice) {
+            const team = state.teams[state.turnIndex];
+            if (slice === 'BANKRUPT') {
+                team.round = 0;
+                el.res.textContent = "BANKRUPT!";
+                el.res.className = "text-3xl font-black text-red-500 mb-1";
+                Audio.play('wrong');
+                nextTurn();
+            } else if (slice === 'LOSE_TURN') {
+                el.res.textContent = "LOSE A TURN";
+                el.res.className = "text-3xl font-black text-red-500 mb-1";
+                Audio.play('wrong');
+                nextTurn();
+            } else if (slice === 'FREE_PLAY') {
+                state.wheelValue = 500; // Free play worth 500
+                state.phase = PHASES.GUESS_FREE; // Special phase
+                el.res.textContent = "FREE PLAY!";
+                el.res.className = "text-3xl font-black text-yellow-400 mb-1";
+                el.msg.textContent = "Guess any letter (vowels are free).";
+            }
+        }
+
+        function onBuyVowel() {
+            Audio.play('click');
+            const team = state.teams[state.turnIndex];
+            if (team.round < VOWEL_COST) return; 
+            
+            team.round -= VOWEL_COST;
+            state.phase = PHASES.GUESS_VOWEL;
+            el.res.textContent = `Bought Vowel (-$${VOWEL_COST})`;
+            el.res.className = "text-xl font-bold text-blue-300 mb-1";
+            el.msg.textContent = "Enter a vowel (A, E, I, O, U).";
+            renderTeams();
+            updateUI();
+            saveState();
+        }
+
+        function onSolve() {
+            Audio.play('click');
+            state.phase = PHASES.SOLVE;
+            el.res.textContent = "SOLVE";
+            el.msg.textContent = "Enter the full puzzle solution.";
+            updateUI();
+            saveState();
+        }
+
+        function onSubmit() {
+            Audio.play('click');
+            let val = el.input.value.toUpperCase().trim();
+            el.input.value = ''; 
+            if (!val) return;
+
+            // 1. Handle Full Solve
+            if (state.phase === PHASES.SOLVE || val.length > 1) {
+                if (val === state.puzzle) {
+                    handleWin();
+                } else {
+                    el.msg.textContent = "Incorrect solve!";
+                    Audio.play('wrong');
+                    if (state.phase !== PHASES.GUESS_FREE) nextTurn();
+                    else { state.phase = PHASES.SPIN_OR_ACTION; updateUI(); saveState(); }
+                }
+                return;
+            }
+
+            // 2. Handle Single Letter
+            const letter = val.charAt(0);
+            if (!/[A-Z]/.test(letter)) {
+                el.msg.textContent = "Please enter a valid letter A-Z.";
+                return;
+            }
+
+            const isVowel = "AEIOU".includes(letter);
+            
+            // Validation based on Phase
+            if (state.phase === PHASES.GUESS_CONSONANT && isVowel) {
+                el.msg.textContent = "Please enter a consonant, not a vowel.";
+                return;
+            }
+            if (state.phase === PHASES.GUESS_VOWEL && !isVowel) {
+                el.msg.textContent = "Please enter a Vowel (A E I O U).";
+                return;
+            }
+
+            // Check duplicates
+            if (state.guessedConsonants.includes(letter) || state.guessedVowels.includes(letter)) {
+                el.msg.textContent = `Letter '${letter}' already guessed.`;
+                if (state.phase !== PHASES.GUESS_FREE) {
+                    Audio.play('wrong');
+                    nextTurn(); 
+                } else {
+                    state.phase = PHASES.SPIN_OR_ACTION; 
+                    updateUI();
+                    saveState();
+                }
+                return;
+            }
+
+            // Register Guess
+            if (isVowel) state.guessedVowels.push(letter);
+            else state.guessedConsonants.push(letter);
+
+            // Check Matches
+            let count = 0;
+            for (let char of state.puzzle) if (char === letter) count++;
+
+            if (count > 0) {
+                // Match Found
+                Audio.play('correct');
+                if(!state.revealed.includes(letter)) state.revealed.push(letter);
+                
+                // Calc Score
+                if (!isVowel) {
+                    const val = (state.phase === PHASES.GUESS_FREE) ? 500 : state.wheelValue;
+                    const gain = val * count;
+                    state.teams[state.turnIndex].round += gain;
+                    el.res.textContent = `Found ${count} ${letter}'s! (+$${gain})`;
+                } else {
+                    el.res.textContent = `Found ${count} ${letter}'s!`;
+                }
+                el.res.className = "text-2xl font-bold text-green-400";
+                
+                // Check full board clear
+                const allRevealed = [...state.puzzle].every(c => state.revealed.includes(c));
+                if (allRevealed) {
+                    handleWin();
+                    return;
+                }
+
+                // Stay with current player
+                state.phase = PHASES.SPIN_OR_ACTION;
+            } else {
+                // No Match
+                Audio.play('wrong');
+                el.res.textContent = `No ${letter} in puzzle.`;
+                el.res.className = "text-2xl font-bold text-red-400";
+                
+                if (state.phase === PHASES.GUESS_FREE) {
+                    state.phase = PHASES.SPIN_OR_ACTION;
+                } else {
+                    nextTurn();
+                    return; 
+                }
+            }
+
+            renderBoard();
+            renderTeams();
+            updateUI();
+            saveState();
+        }
+
+        function nextTurn() {
+            state.turnIndex = (state.turnIndex + 1) % state.teams.length;
+            state.phase = PHASES.SPIN_OR_ACTION;
+            el.msg.textContent = `Turn passes to Team ${state.teams[state.turnIndex].id}`;
+            Audio.play('turn');
+            setTimeout(() => {
+                el.res.textContent = ""; 
+                updateUI(); 
+                renderTeams();
+            }, 1500);
+            updateUI();
+            renderTeams();
+            saveState();
+        }
+
+        function handleWin() {
+            const team = state.teams[state.turnIndex];
+            const winAmt = Math.max(team.round, 1000);
+            team.score += winAmt;
+            team.round = 0;
+            
+            // Reveal all
+            for(let c of state.puzzle) if(!state.revealed.includes(c)) state.revealed.push(c);
+            
+            renderBoard();
+            renderTeams();
+            Audio.play('win');
+            
+            el.res.textContent = "PUZZLE SOLVED!";
+            el.res.className = "text-4xl font-black text-yellow-400 animate-pulse";
+            el.msg.textContent = `Team ${team.id} wins $${winAmt}! Next puzzle in 5s...`;
+            
+            state.phase = PHASES.SETUP; 
+            updateUI();
+            saveState();
+            
+            setTimeout(() => {
+                loadPuzzle(state.puzzleIndex + 1);
+            }, 5000);
+        }
+
+        // --- 6. RENDER & UI UPDATE ---
+
+        function renderBoard() {
+            el.board.innerHTML = '';
+            // Responsive rendering
+            el.cat.textContent = `Category: ${state.category}`;
+            
+            for (let i=0; i<state.puzzle.length; i++) {
+                const char = state.puzzle[i];
+                const d = document.createElement('div');
+                if (char === ' ') {
+                    d.className = 'letter-box space';
+                } else {
+                    const isRevealed = state.revealed.includes(char);
+                    d.className = `letter-box ${isRevealed ? 'revealed' : ''}`;
+                    d.textContent = isRevealed ? char : '';
+                }
+                el.board.appendChild(d);
+            }
+            
+            // Update small tracking display
+            el.consDisplay.textContent = "Consonants: " + state.guessedConsonants.sort().join(' ');
+            el.vowDisplay.textContent = "Vowels: " + state.guessedVowels.sort().join(' ');
+        }
 
         function renderTeams() {
-            // Renders the team cards and sets the active player class
-            elements.teamsContainer.innerHTML = '';
-            teams.forEach((team, index) => {
-                const isActive = index === currentPlayerIndex;
-                const card = document.createElement('div');
-                card.className = `team-card bg-gray-900 text-center text-white w-40 ${isActive ? 'active-team' : ''}`;
-                card.innerHTML = `
-                    <h3 class="text-xl font-bold mb-1">${team.name}</h3>
-                    <p class="text-2xl font-extrabold text-green-400">$${team.score}</p>
+            el.scoreContainer.innerHTML = '';
+            state.teams.forEach((t, idx) => {
+                const active = idx === state.turnIndex;
+                const div = document.createElement('div');
+                div.className = `p-2 min-w-[100px] rounded-lg border-2 text-center transition-all ${active ? 'bg-yellow-600 border-yellow-300 scale-105 shadow-xl' : 'bg-gray-700 border-gray-600 opacity-80'}`;
+                div.innerHTML = `
+                    <div class="text-xs font-bold uppercase tracking-wider ${active ? 'text-gray-900' : 'text-gray-400'}">Team ${t.id}</div>
+                    <div class="text-xl font-black text-white">$${t.score}</div>
+                    <div class="text-sm font-medium ${active ? 'text-yellow-100' : 'text-gray-500'}">Round: $${t.round}</div>
                 `;
-                elements.teamsContainer.appendChild(card);
+                el.scoreContainer.appendChild(div);
             });
         }
 
-        function addTeam() {
-            ensureAudioContext();
-            const teamNumber = teams.length + 1;
-            teams.push({
-                name: `Team ${teamNumber}`,
-                score: 500, // Initial score for easy testing
-            });
-            renderTeams();
-            renderControls(); 
-            say(`Team ${teamNumber} added! There are now ${teams.length} teams.`);
+        function updateUI() {
+            const phase = state.phase;
+            const team = state.teams[state.turnIndex];
+            const hasMoneyForVowel = team.round >= VOWEL_COST;
+
+            // Button States
+            el.btns.spin.disabled = phase !== PHASES.SPIN_OR_ACTION;
+            el.btns.vowel.disabled = phase !== PHASES.SPIN_OR_ACTION || !hasMoneyForVowel;
+            el.btns.solve.disabled = phase !== PHASES.SPIN_OR_ACTION;
+            
+            // Input State
+            const inputActive = [PHASES.GUESS_CONSONANT, PHASES.GUESS_VOWEL, PHASES.GUESS_FREE, PHASES.SOLVE].includes(phase);
+            el.input.disabled = !inputActive;
+            el.btns.submit.disabled = !inputActive;
+            
+            if (inputActive) {
+                el.input.focus();
+                if (phase === PHASES.GUESS_CONSONANT) el.label.textContent = "Enter a Consonant:";
+                else if (phase === PHASES.GUESS_VOWEL) el.label.textContent = "Enter a Vowel:";
+                else if (phase === PHASES.GUESS_FREE) el.label.textContent = "Free Play! Enter any letter:";
+                else if (phase === PHASES.SOLVE) el.label.textContent = "Solve the Puzzle:";
+            } else {
+                el.label.textContent = "Select an action above...";
+            }
         }
 
-        function removeLastTeam() {
-            ensureAudioContext();
-            if (teams.length > 1) {
-                teams.pop();
-                if (currentPlayerIndex >= teams.length) {
-                    currentPlayerIndex = 0; // Wrap around if the current player was removed
-                }
+        // --- 7. EVENT LISTENERS ---
+        el.btns.spin.onclick = () => { Audio.play('click'); onSpin(); };
+        el.btns.vowel.onclick = () => { Audio.play('click'); onBuyVowel(); };
+        el.btns.solve.onclick = () => { Audio.play('click'); onSolve(); };
+        el.btns.submit.onclick = onSubmit;
+        el.input.onkeydown = (e) => { if(e.key === 'Enter') onSubmit(); };
+        el.btns.reset.onclick = resetGame;
+
+        el.btns.add.onclick = () => {
+            Audio.play('click');
+            if (state.teams.length < 6) {
+                state.teams.push({id: state.teams.length+1, score:0, round:0});
                 renderTeams();
-                renderControls(); 
-                say(`The last team was removed. There are now ${teams.length} teams.`);
-            } else {
-                say("You must have at least one team.");
+                saveState();
             }
-        }
-
-        function nextPlayer() {
-            if (gameState === 'GAME_OVER') return;
-            currentPlayerIndex = (currentPlayerIndex + 1) % teams.length;
-            renderTeams(); // Update the active team card state
-            setGameState('IDLE'); // This calls renderControls()
-            say(`Turn passes. It is now ${teams[currentPlayerIndex].name}'s turn.`);
-        }
-
-        // --- Gemini API Integration for Category ---
-
-        async function fetchPuzzleCategory(speak = true) {
-            elements.puzzleCategory.textContent = "Loading...";
-
-            const systemPrompt = "You are a professional game show host. Generate a concise, fun, and common category name for a 'Wheel of Fortune' style puzzle. Respond with only the category name, like 'FOOD AND DRINK' or 'BEFORE AND AFTER'.";
-            const userQuery = "Generate a single, broad category name for a word puzzle.";
-
-            const payload = {
-                contents: [{ parts: [{ text: userQuery }] }],
-                tools: [{ "google_search": {} }],
-                systemInstruction: { parts: [{ text: systemPrompt }] },
-            };
-
-            const maxRetries = 5;
-            for (let i = 0; i < maxRetries; i++) {
-                try {
-                    const response = await fetch(GEMINI_API_URL + apiKey, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-
-                    const result = await response.json();
-                    const categoryText = result.candidates?.[0]?.content?.parts?.[0]?.text || "GENERAL";
-                    elements.puzzleCategory.textContent = categoryText.trim().toUpperCase();
-                    
-                    if (speak) {
-                        say(`The category is ${categoryText}.`);
-                    }
-                    return;
-
-                } catch (e) {
-                    if (i < maxRetries - 1) {
-                        const delay = Math.pow(2, i) * 1000;
-                        await new Promise(resolve => setTimeout(resolve, delay));
-                    } else {
-                        console.error("Gemini API call failed after multiple retries:", e);
-                        elements.puzzleCategory.textContent = "GENERAL";
-                        if (speak) {
-                             say("I couldn't load the category, so it's a General topic. Spin the wheel!");
-                        }
-                    }
-                }
-            }
-        }
-
-        // --- Core Rendering Functions ---
-
-        /** Renders the puzzle board based on the current state. */
-        function renderPuzzle() {
-            elements.puzzleContainer.innerHTML = '';
-            const phrase = puzzle.toUpperCase();
-            
-            // This is a simple logic to break the phrase into groups (not true Wheel of Fortune)
-            // but keeps the display readable for longer phrases.
-            let lines = [[]]; 
-            let currentLineIndex = 0;
-
-            for (let i = 0; i < phrase.length; i++) {
-                const char = phrase[i];
-                
-                // Simplified line breaking logic: wrap every 14 characters or on a space
-                if (char === ' ' && lines[currentLineIndex].length > 0) {
-                    lines[currentLineIndex].push(' '); // Add space to current line before starting a new one
-                    currentLineIndex++;
-                    lines[currentLineIndex] = [];
-                    continue;
-                }
-                
-                if (lines[currentLineIndex].length >= 14 && char !== ' ') {
-                    currentLineIndex++;
-                    lines[currentLineIndex] = [];
-                }
-
-                if (char !== ' ') {
-                    lines[currentLineIndex].push(char);
-                }
-            }
-            
-            // Now render the lines
-            elements.puzzleContainer.innerHTML = '';
-            lines.forEach(lineChars => {
-                if (lineChars.length === 0) return;
-                
-                const lineElement = document.createElement('div');
-                lineElement.className = 'letter-group';
-
-                lineChars.forEach(char => {
-                    if (char === ' ') {
-                        const space = document.createElement('div');
-                        space.className = 'puzzle-space mx-1';
-                        lineElement.appendChild(space);
-                        return;
-                    }
-
-                    const tile = document.createElement('div');
-                    tile.classList.add('puzzle-letter');
-
-                    if (guessedLetters.has(char)) {
-                        tile.textContent = char;
-                        tile.classList.add('revealed');
-                    } else if (/[A-Z]/.test(char)) {
-                        tile.textContent = ''; // Hidden
-                    } else {
-                        tile.textContent = char; // Punctuation/numbers remain visible
-                        tile.classList.remove('puzzle-letter');
-                        tile.classList.add('text-2xl', 'font-bold', 'text-gray-400', 'p-2');
-                    }
-                    lineElement.appendChild(tile);
-                });
-                elements.puzzleContainer.appendChild(lineElement);
-            });
-
-            // Check for win condition
-            const uniqueLetters = new Set(phrase.replace(/[^A-Z]/g, '').split(''));
-            let isSolved = true;
-            uniqueLetters.forEach(letter => {
-                if (/[A-Z]/.test(letter) && !guessedLetters.has(letter)) {
-                    isSolved = false;
-                }
-            });
-
-            if (isSolved && puzzle !== "" && gameState !== 'GAME_OVER') {
-                showMessage("CONGRATULATIONS! The puzzle is solved!", "text-green-400");
-                say(`${teams[currentPlayerIndex].name} solved the puzzle!`);
-                setGameState('GAME_OVER');
-            }
-        }
-
-
-        /** Updates the button states and input visibility based on gameState. */
-        function renderControls() {
-            if (teams.length === 0) return;
-            
-            const currentTeam = teams[currentPlayerIndex];
-            const isIdle = gameState === 'IDLE';
-            const isAwaitingGuess = gameState === 'AWAITING_CONSONANT_GUESS';
-
-            // Main buttons state
-            elements.spinButton.disabled = !isIdle;
-            elements.solveButton.disabled = !isIdle && !isAwaitingGuess;
-            elements.buyVowelButton.disabled = !isIdle || currentTeam.score < VOWEL_COST || VOWELS.every(v => guessedLetters.has(v));
-
-            // Toggle button styles
-            elements.spinButton.classList.toggle('btn-disabled', !isIdle);
-            elements.solveButton.classList.toggle('btn-disabled', !isIdle && !isAwaitingGuess);
-            elements.buyVowelButton.classList.toggle('btn-disabled', elements.buyVowelButton.disabled);
-            elements.buyVowelButton.classList.toggle('btn-secondary', !elements.buyVowelButton.disabled);
-
-
-            // Guess Input Container state
-            if (isAwaitingGuess) {
-                elements.guessInputContainer.classList.remove('hidden');
-                elements.guessPrompt.textContent = `${currentTeam.name}: Guess a CONSONANT for $${currentSpinValue} per hit.`;
-                elements.letterInput.focus();
-                elements.letterInput.value = '';
-            } else {
-                elements.guessInputContainer.classList.add('hidden');
-            }
-
-            // Guessed Letters Display
-            elements.guessedLettersDisplay.textContent = Array.from(guessedLetters).sort().join(', ');
-        }
-
-        /** Utility function to show a temporary message. */
-        function showMessage(msg, colorClass = "text-yellow-400") {
-            elements.messageBox.textContent = msg;
-            elements.messageBox.className = 'mt-4 text-center text-xl font-bold ' + colorClass + ' h-8';
-            setTimeout(() => {
-                elements.messageBox.textContent = '';
-                elements.messageBox.className = 'mt-4 text-center text-xl font-bold text-red-400 h-8';
-            }, 3000);
-        }
-
-        // --- Game Action Functions ---
-
-        /** Simulates spinning the wheel and sets up the consonant guess state. */
-        function spinWheel() {
-            ensureAudioContext();
-            if (teams.length === 0) {
-                say("Please add at least one team to start the game.");
-                return;
-            }
-
-            // Wheel values (simple simulation)
-            const spinAmounts = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000];
-            currentSpinValue = spinAmounts[Math.floor(Math.random() * spinAmounts.length)];
-            
-            showMessage(`${teams[currentPlayerIndex].name} spun! Value is $${currentSpinValue} per letter.`, "text-yellow-400");
-            say(`${teams[currentPlayerIndex].name} spun for ${currentSpinValue} dollars!`);
-
-            setGameState('AWAITING_CONSONANT_GUESS');
-        }
-        
-        /** Handles the manual consonant guess from the input field. */
-        function handleManualGuess() {
-            ensureAudioContext();
-            if (gameState !== 'AWAITING_CONSONANT_GUESS') return;
-
-            const letter = elements.letterInput.value.toUpperCase().trim();
-            elements.letterInput.value = ''; // Clear input immediately
-
-            if (letter.length !== 1 || !/[A-Z]/.test(letter)) {
-                showMessage("Please enter a single, valid letter.", "text-red-400");
-                return;
-            }
-
-            if (VOWELS.includes(letter)) {
-                showMessage("You must guess a CONSONANT after spinning. Buy a VOWEL instead.", "text-red-400");
-                return;
-            }
-            
-            // This is a consonant guess (isConsonant = true)
-            guessLetter(letter, true);
-        }
-
-
-        /** The function to handle buying a vowel - triggered by modal selection. */
-        function processVowelPurchase(vowel) {
-            ensureAudioContext();
-            const currentTeam = teams[currentPlayerIndex];
-
-            if (currentTeam.score < VOWEL_COST) {
-                elements.vowelError.textContent = "Error: Score is too low!";
-                elements.vowelError.classList.remove('hidden');
-                say("Not enough money for a vowel!");
-                return;
-            }
-
-            currentTeam.score -= VOWEL_COST;
-            
-            // This is a vowel guess (isConsonant = false)
-            guessLetter(vowel, false); 
-            closeVowelModal();
-            showMessage(`Vowel '${vowel}' purchased for $250.`, "text-indigo-400");
-            say(`Vowel ${vowel} purchased.`);
-        }
-
-        /** Opens the Vowel Modal and sets up the buttons. */
-        function openVowelModal() {
-            ensureAudioContext();
-            if (teams.length === 0) {
-                 say("Please add at least one team before buying a vowel.");
-                 return;
-            }
-            if (gameState !== 'IDLE') return; // Only allow buying vowel when idle
-            
-            const currentTeam = teams[currentPlayerIndex];
-
-            if (currentTeam.score < VOWEL_COST) {
-                elements.vowelError.textContent = "You need $250 to buy a vowel!";
-                elements.vowelError.classList.remove('hidden');
-                say("You do not have enough money to buy a vowel.");
-                return;
-            }
-
-            elements.vowelError.classList.add('hidden');
-            elements.vowelButtons.innerHTML = '';
-            
-            const remainingVowels = VOWELS.filter(v => !guessedLetters.has(v));
-
-            if (remainingVowels.length === 0) {
-                showMessage("All vowels have already been guessed!", "text-red-400");
-                say("All vowels have already been revealed.");
-                return;
-            }
-
-            remainingVowels.forEach(vowel => {
-                const button = document.createElement('button');
-                button.textContent = vowel;
-                button.className = 'vowel-button';
-                button.onclick = () => processVowelPurchase(vowel);
-                elements.vowelButtons.appendChild(button);
-            });
-
-            elements.vowelModal.style.display = 'flex';
-        }
-
-        /** Closes the Vowel Modal. */
-        function closeVowelModal() {
-            elements.vowelModal.style.display = 'none';
-        }
-
-        /** Common logic for guessing any letter. */
-        function guessLetter(letter, isConsonant) {
-            letter = letter.toUpperCase();
-            const currentTeam = teams[currentPlayerIndex];
-            let turnPasses = false;
-
-            if (guessedLetters.has(letter)) {
-                showMessage(`Letter '${letter}' was already guessed. Turn passes.`, "text-red-400");
-                say(`Letter ${letter} was already guessed. Turn passes.`);
-                turnPasses = true;
-            } else if (!/[A-Z]/.test(letter)) {
-                showMessage(`Invalid letter: '${letter}'. Turn passes.`, "text-red-400");
-                say(`Invalid letter. Turn passes.`);
-                turnPasses = true;
-            } else {
-                guessedLetters.add(letter);
-
-                // Check if the letter is in the puzzle
-                const count = (puzzle.match(new RegExp(letter, 'gi')) || []).length;
-
-                if (count > 0) {
-                     if (isConsonant) {
-                         const earnings = count * currentSpinValue;
-                         currentTeam.score += earnings;
-                         showMessage(`Yes! ${count} instance(s) of '${letter}'. ${currentTeam.name} earned $${earnings}!`, "text-green-400");
-                         say(`Yes! ${count} ${letter}'s. ${currentTeam.name} earned ${earnings} dollars! Spin or buy a vowel.`);
-                         // If the state was AWAITING_CONSONANT_GUESS, set it back to IDLE
-                         if (gameState === 'AWAITING_CONSONANT_GUESS') {
-                             setGameState('IDLE');
-                         }
-                     } else {
-                         // Vowel purchase success (cost already deducted)
-                         showMessage(`Vowel '${letter}' revealed ${count} time(s).`, "text-indigo-400");
-                         say(`Vowel ${letter} revealed ${count} time(s). Spin or buy a vowel.`);
-                     }
-                } else {
-                    showMessage(`Sorry, no '${letter}'. Turn passes.`, "text-red-400");
-                    say(`Sorry, no ${letter}. Turn passes.`);
-                    turnPasses = true;
-                }
-            }
-            
-            if (turnPasses) {
-                nextPlayer();
-            }
-
-            renderPuzzle();
-            renderTeams(); // Explicitly update scores/active player here
-            renderControls();
-        }
-
-        /** Allows the user to try and solve the puzzle. */
-        function solvePuzzle() {
-            ensureAudioContext();
-            if (teams.length === 0) {
-                 say("Please add at least one team.");
-                 return;
-            }
-            
-            const currentTeam = teams[currentPlayerIndex];
-            // Using a simple prompt here, since we cannot use window.confirm/alert
-            const solution = prompt(`Team ${currentTeam.name}, enter your solution for the puzzle:`).toUpperCase().trim(); 
-            
-            if (solution === puzzle) {
-                // Award bonus for solving
-                currentTeam.score += 5000;
-                showMessage(`CORRECT! ${currentTeam.name} solved the puzzle! Final Score: $${currentTeam.score}`, "text-yellow-300");
-                say(`CONGRATULATIONS! ${currentTeam.name} solved the puzzle!`);
-                
-                // Reveal all letters
-                puzzle.split('').filter(l => /[A-Z]/.test(l)).forEach(l => guessedLetters.add(l));
-                setGameState('GAME_OVER');
-                
-                // Start a new game after a delay
-                setTimeout(newGame, 5000);
-
-            } else {
-                showMessage(`Incorrect guess. ${currentTeam.name}'s turn passes.`, "text-red-400");
-                say(`Incorrect guess. ${currentTeam.name}'s turn passes.`);
-                nextPlayer();
-            }
-            renderPuzzle();
-            renderTeams(); // Explicitly update final scores
-            renderControls();
-        }
-
-        /** Starts a new game with a random puzzle. */
-        function newGame() {
-            ensureAudioContext();
-            puzzle = puzzles[Math.floor(Math.random() * puzzles.length)].toUpperCase();
-            guessedLetters.clear();
-            
-            // Auto-guess common punctuation and characters that are not A-Z
-            for (let i = 0; i < puzzle.length; i++) {
-                const char = puzzle[i];
-                if (!/[A-Z]/.test(char) && char !== ' ') {
-                    guessedLetters.add(char);
-                }
-            }
-
-            // Ensure teams exist or initialize them
-            if (teams.length === 0) {
-                teams.push({ name: "Team 1", score: 500 });
-                currentPlayerIndex = 0;
-            }
-            
-            // Gemini: Fetch the category asynchronously
-            fetchPuzzleCategory();
-
-            showMessage(`New puzzle started! ${teams[currentPlayerIndex].name}, spin the wheel!`, "text-green-400");
-            say(`New puzzle started! ${teams[currentPlayerIndex].name}, spin the wheel!`);
-            setGameState('IDLE');
-            renderPuzzle();
-            renderTeams(); // Explicitly call renderTeams to update team list and active class
-        }
-
-        // Initialize the game when the script loads
-        window.onload = () => {
-             // Initial setup: initialize teams and render, but DO NOT trigger audio until user action.
-             if (teams.length === 0) {
-                 teams.push({ name: "Team 1", score: 500 });
-                 currentPlayerIndex = 0;
-             }
-             // Silent setup: fetch category but suppress the 'say'
-             fetchPuzzleCategory(false); 
-
-             showMessage(`Click any button to start playing!`, "text-white");
-             setGameState('IDLE');
-             renderPuzzle();
-             renderTeams();
         };
+        el.btns.rem.onclick = () => {
+            Audio.play('click');
+            if (state.teams.length > 2) {
+                state.teams.pop();
+                if (state.turnIndex >= state.teams.length) state.turnIndex = 0;
+                renderTeams();
+                saveState();
+            }
+        };
+
+        el.btns.gen.onclick = async () => {
+            Audio.play('click');
+            el.btns.gen.textContent = "Loading...";
+            const apiKey = ""; // Inject key
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            const prompt = "Generate 5 phrases for Wheel of Fortune. Return JSON array of objects with 'category' and 'puzzle' keys. Use uppercase.";
+            
+            try {
+                const resp = await fetch(url, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: { responseMimeType: "application/json" }
+                    })
+                });
+                const data = await resp.json();
+                const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (text) {
+                    PUZZLES = JSON.parse(text);
+                    loadPuzzle(0);
+                    el.btns.gen.textContent = "✨ Generated!";
+                    setTimeout(()=> el.btns.gen.textContent = "✨ Generate New Puzzles (AI)", 2000);
+                }
+            } catch(e) {
+                console.error(e);
+                el.btns.gen.textContent = "Error (Check Console)";
+            }
+        };
+
+        // BOOTSTRAP
+        window.onload = initGame;
 
     </script>
 </body>
